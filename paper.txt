@@ -1,0 +1,1181 @@
+LURS
+
+
+Leading University Research Society
+Leading University, Sylhet, Bangladesh
+
+From Forgetting to Factuality: Formalizing the Unlearning-Hallucination Interaction in Large Language
+Models
+
+M. M. Zahid Hasan B.Sc. in Software Engineering, Shahjalal
+University of Science and Technology mm35@student.sust.edu
+
+Shakera Jannat Ema B.Sc. in Software Engineering, Shahjalal
+University of Science and Technology shakera29@student.sust.edu
+
+Abstract -- Machine unlearning , the selective removal of learned knowledge from trained models that has become mandatory as a part of privacy regulations like GDPR and EU AI Act, but the effect of machine unlearning on factuality of models remains to be studied empirically. In this work, we reveal a critical oversight in the current research agenda: while unlearning algorithms target the removal of particular knowledge, they also inadvertently create hallucinations through disrupting shared parameter spaces encoding related knowledge. This problem is formulated within the Unlearning-Hallucination Interaction Framework (UHIF) as a trade-off between the unlearning effectiveness, utility preservation and hallucination risk, represented as three-dimensional space. Through the systematic review of 57 papers published between 2020 and 2026, we present the first taxonomy of 15+ unlearning techniques evaluated based on their properties in the space of hallucination dimensions and prove that naive gradient ascent lies in a Pareto-dominated region of UHIF space, whereas entropy maximization decreases the risk of hallucinations at the cost of complete unlearning. Finally, we propose HalUnlearn-Bench protocol for benchmarking unlearning algorithms across four complementary measures of unlearning completeness, utility preservation and hallucination resistance.
+
+Keywords -- Machine unlearning, large language models, hallucination mitigation, trustworthy AI, UHIF framework, knowledge removal, HalUnlearn-Bench, calibration.
+
+I. INTRODUCTION
+Machine unlearning , removal of some learned knowledge from trained neural models -- has become more than a topic of academic discussion due to the recent emergence of mandatory requirements for unlearning capabilities in various legislations such as GDPR Article 17 ("the right to be forgotten"), EU AI Act (2024) [28], and India's DPDP Rules (2025). While the need for demonstrating the ability to remove specific training data in order to comply with laws is clear, the consequences of doing so in terms of the model's reliability are not understood sufficiently enough. Removal of knowledge from a neural model must make it more reliable, but our experiments suggest otherwise.
+On top of that, hallucination (generating fluent, but incorrect content) is one of the most significant and well-studied reliability problems of LLMs with error rates from 3% to 20% depending on the task and the model [1], [5]. As we prove below, these two issues are tightly interconnected. Knowledge removal, unless performed in a particular way, disrupts the parameter subspace encoding adjacent, legitimate knowledge thus causing new hallucinations as a side effect of the necessary legal action. We refer to it as collateral hallucination and claim it to be a largely underestimated danger.
+Take, for instance, an LLM forced by law to "forget" certain user data. One performs
+
+GA-based unlearning, the most widely used approximate technique. The data is forgotten according to common measurements. However, GA does not forget selectively but perturbs all those parameters that were affected by the forget set. Unfortunately, these parameters also encode some adjacent knowledge. After being perturbed, the model will confidently produce wrong responses to queries concerning topics adjacent to the forgotten data. Thus, a legal requirement of protecting privacy makes the system less trustworthy [6], [7].
+In other words, we are witnessing an increase of pressure from regulators who force us to deploy unlearning techniques whose trustworthiness effects are not yet well studied. At the same time, the researchers studying hallucinations and unlearning have worked independently with different goals, metrics, and benchmarks. As a result, the intersection of these areas was left unaddressed [4], [5].
+The aim of this survey is to fill this gap. Firstly, we introduce the Unlearning-Hallucination Interaction Framework (UHIF) the first principled way to characterize interaction between knowledge removal methods and hallluncation. Then, using a systematic review of 57 papers published between 2020 and 2026, we identify and taxonomize 15+ unlearning methods evaluated along 5 hallucination dimensions. Finally, we introduce HalUnlearn-Bench -- the first protocol to evaluate unlearning
+
+completeness, utility, and hallucination resistance simultaneously.
+II. BACKGROUND
+Current LLMs employ transformer architectures [29], which rely on self-attention mechanisms that allow for parallel processing of input sequences. The prevalent framework entails pre-training on large-scale text datasets through next-token prediction, then fine-tuning, instruction tuning, and alignment through RLHF or DPO [17]. The produced models -- whose parameter numbers range between 7 billion (LLaMA-2-7B) to over one trillion (GPT-4) , embed extensive amounts of world knowledge into their weights, making the existence and nonexistence of certain knowledge equally important both from a safety and compliance perspective.
+Hallucinations refer to outputs generated by the model that may be fluent and coherent but either factually untrue, logically inconsistent, or unsupported by the context provided [1]. Following [2] and [3], we classify hallucinations as intrinsic (output contradicts provided input), extrinsic (output provides information that cannot be verified, yet is not included in the source), factual (incorrect facts contradicting world knowledge), and faithfulness (distortion of source or prompt). Intrinsic and extrinsic roots lie at four levels: data-level (biased and noisy training dataset), model-level (overfitting on fluency during probabilistic generation process),
+
+training-level (rewards confident guessing over calibrated uncertainty, as described by OpenAI in the "incentive problem" [5]), and inference-level (decoding temperature and prompt sensitivity).
+Formally, machine unlearning entails creating a new model M' from a trained model M on dataset D such that it would be statistically indistinguishable from a model trained only on Dr = D \ Df, where Df is the forget set, Dr the retain set [8]. Exact unlearning guarantees this statistical similarity by means of retraining from scratch. Approximate unlearning -- the more practical method -- entails producing a similar model without the need to retrain it completely, thereby compromising the guarantee for statistical similarity [6]. The reasons for LLM unlearning include compliance with GDPR/DPDP, copyright deletion, de-toxification, and -- the focus of this paper -- reducing targeted hallucinations by deleting the false or contradictory training data.
+III. SURVEY METHODOLOGY
+We performed a systematic search in eight academic databases: Google Scholar, Semantic Scholar, arXiv (cs.CL, cs.LG, cs.AI), ACL Anthology, IEEE Xplore, OpenReview, DBLP, and ResearchGate. Nineteen Boolean search queries were created by combining keywords within three topics: machine unlearning ("machine unlearning," "selective forgetting," "knowledge erasure," "gradient ascent unlearning"), hallucination ("LLM hallucination,"
+
+"hallucination mitigation," "factual accuracy"), and trustworthy AI ("trustworthy language model," "GDPR right to be forgotten"). The queries were performed in January-March 2026.
+The inclusion criteria consisted of peer-reviewed articles and high-impact preprints (2020-2026) on machine unlearning for LLMs, LLM hallucination, or their intersection; transformer-based models; English language; and results on models of no less than 1B parameters. We excluded any studies that did not cover LLM unlearning, grey literature, non-academic sources, only code generation based hallucinations, hardware optimizations without model modifications, and papers lacking experimental details for replication.
+According to the PRISMA framework: 520 records initially retrieved  380 records after deduplication  160 records after title and abstract screening  57 highly relevant papers after full text screening. We categorize our findings into seven sections: A (Machine Unlearning), B (Hallucination), C (Alternative Mitigation), D (Intersection), E (Benchmarks), F (Trustworthy AI), G (Regulatory). Section D, including 8 papers, is the main evidence base for the UHIF framework. Inter-rater agreement was determined by two independent reviewers and gave Cohen's  = 0.84 (substantial agreement) on relevance classification.
+
+IV. TAXONOMY OF UNLEARNING METHODS
+
+MACHINE
+
+We categorize 15+ unlearning methods into five categories and compare each of them against five hallucination dimensions. Evidence annotation: Cells denoted by [V] are verified through controlled experiments in the referenced paper; cells denoted by [S] are synthesized through cross-paper analysis in the form of our evaluation; cells denoted by indicate the lack of sufficient evidence.
+
+Retraining from scratch -- the theoretically perfect approach which is defined as retraining M on Dr from scratch to ensure complete deletion of knowledge from M and absence of any hallucinations embedded in Df. However, this is practically infeasible at LLM scale (e.g., GPT-4 scale) and poses significant computational burdens [27]. SISA [12] splits training data into shards and retrain affected shards when the model forgets something, but storage overhead and aggregation loss make this algorithm impractical for LLMs.
+
+Among gradient-based approaches, Gradient Ascent (GA) maximizes prediction loss on Df by reversing the direction of gradient updates. Although GA demonstrates very good performance in terms of unlearning effectiveness, making the number of harmful responses drop up to 75% in controlled experiments [9], it has a known failure mode called catastrophic collapse, which implies complete destruction of the model's utility on Dr, resulting in significantly increased hallucination rate for all domains. Recent ICLR 2025 studies have confirmed 18% performance drop under the utility constraint and total collapse without it [14]. Negative Preference Optimization (NPO) , Smoothed Gradient Ascent (SGA) [11] and Gradual Negative Matching (GNM) are more balanced methods in terms of forget-retain tradeoff, yet all suffer from the same basic limitation -- none of them prevents the generation of hallucinations related to the unlearned topic.
+Attention Shifting (AS) [20] is, notably, the only unlearning approach specifically designed to avoid generation of hallucinations. It uses dual-loss formulation, shifting attention away from fact-bearing tokens in Df without breaking linguistically structured connections between them and, at the same time, paying more attention to tokens from Dr. Based on self-reported results in [20], Attention Shifting outperforms other surveyed methods across all five hallucination dimensions and appears closest to Pareto optimality in the UHIF space among methods
+
+reviewed; this finding currently rests on a single paper's own evaluation and has not been independently replicated (see H4, comparative gap)
+
+Among
+
+regularization
+
+approaches,
+
+KL-Divergence Regularization limits the model
+
+to remain close to its initial distribution during
+
+unlearning process, ensuring its stability and
+
+preventing unlearning-induced hallucination [14].
+
+Entropy Maximization (ME) [16] aims to
+
+maximize entropy of the outputs on Df, making
+
+the model tend to the uniform distribution on the
+
+vocabulary for forget-set queries. Thus, it directly
+
+solves the OpenAI's "incentive problem" by
+
+generating not confident but calibrated response.
+
+We show, under Assumption A3 (see Appendix
+
+A.2), that ME guarantees H  0 for factual and
+
+faithfulness hallucinations as operationalized by
+
+our HR metric -- the only method among those
+
+reviewed with a formal guarantee of this kind,
+
+though this guarantee is theoretical and, per our
+
+own pilot (Table VII), does not automatically
+
+translate into practical abstention behavior under
+
+greedy decoding. ELM [10] identifies
+
+concept-related parameters using the model's
+
+self-classification ability and reduces their
+
+influence through targeted low-rank updates
+
+(LoRA style) to reduce generation probability of
+
+forget-set concepts. The table I below contains
+
+the evidence-annotated taxonomy.
+
+TABLE I: UNLEARNING METHODS MAPPED TO HALLUCINATION DIMENSIONS
+(EVIDENCE-ANNOTATED). = EFFECTIVE;  = PARTIAL; × = INEFFECTIVE OR WORSENS.
+
+[V] = PAPER-VERIFIED; [S] = SYNTHESIS-BASED; [?] = INSUFFICIENT
+EVIDENCE.
+
+Method
+
+Fact Fai Intrinsi Extrinsi Prevents
+
+ual thf
+
+c
+
+c
+
+New
+
+uln
+
+Hall.
+
+ess
+
+Full
+
+ 
+
+
+
+
+
+
+
+Retraining
+
+SISA
+
+ 
+
+
+
+
+
+
+
+Gradient
+
+ ×
+
+
+
+
+
+×
+
+Ascent
+
+Smoothed  
+
+
+
+
+
+
+
+GA / NPO
+
+Attention
+
+ 
+
+
+
+
+
+
+
+Shifting
+
+KL-Div
+
+
+
+
+
+
+
+
+
+
+
+Regularizati
+
+on
+
+Entropy
+
+ 
+
+
+
+
+
+
+
+Maximizatio
+
+n
+
+Neuron
+
+
+
+×
+
+
+
+
+
+
+
+Pruning
+
+ELM
+
+ 
+
+
+
+
+
+
+
+SPUNGE
+
+
+
+
+
+
+
+
+
+
+
+Evidence
+[V] [V] [V] [V] [V] [S]
+[S]
+[?] [V] [S]
+
+TABLE II: PER-PAPER EMPIRICAL SUMMARY: UNLEARNING METHODS VS. HALLUCINATION IMPACT ( = REDUCED;  =
+INCREASED;  = MARGINAL / MIXED).
+
+Pap Met Mo Dat Fo Uti Ha er hod del ase rge lity ll.
+t t
+
+Notes
+
+Bour SIS Ge Cus Hi Lo  Shard-based;
+
+toule A ner tom gh w
+
+efficient for
+
+et al.
+
+al
+
+smaller
+
+(202
+
+models
+
+1)
+
+Mac Grad LL TO Hi Hi 
+
+hine . aM FU gh gh
+
+Unle Asce A
+
+dro
+
+arnin nt
+
+p
+
+g (GA
+
+(202 )
+
+4)
+
+Causes instability / catastrophic
+collapse
+
+Smo Grad LL TO Me Me  Reduces
+
+othe ient- M FU d- diu
+
+catastrophic
+
+d base
+
+Hi m
+
+collapse risk
+
+GA d
+
+gh
+
+(202
+
+5)
+
+NPO Pref. LL TO Me Lo 
+
+Better
+
+(202 Opt. M FU diu w
+
+retain-forget
+
+5)
+
+m
+
+balance
+
+Grad Grad LL Cus Me Lo 
+
+Stable
+
+ual ient- M tom d- w
+
+alternative to
+
+Neg. base
+
+Hi
+
+naive GA
+
+Matc d
+
+gh
+
+h
+
+(202
+
+5)
+
+Atte Atte Tra Cus Hi Lo 
+
+Only
+
+ntion ntion nsf. tom gh w
+
+hallucination
+
+Shift -bas
+
+-aware
+
+ing ed
+
+unlearning
+
+(202
+
+method
+
+5)
+
+KL Reg. LL TO Me Lo  Prevents
+
++ Hybr M FU diu w
+
+over-forgetti
+
+GA id
+
+m
+
+ng via KL
+
+(202
+
+penalty
+
+5)
+
+Entr Reg LL Cus Me Lo  Encourages
+
+opy ulari M tom diu w
+
+uncertainty;
+
+Max. zatio
+
+m
+
+formal H 
+
+(202 n
+
+0 guarantee
+
+4)
+
+Ans Reg LL Cus Me Lo 
+
+wer ulari M tom diu w
+
+Pres. zatio
+
+m
+
+Loss n
+
+(202
+
+4)
+
+Protects correct retain-set knowledge
+
+Grad Prun LL Cus Me Me  Imprecise
+
+Prun ing M tom diu diu
+
+neuron-level
+
+er
+
+m m
+
+removal
+
+(202
+
+5)
+
+EL Kno LL Cus Hi Lo  Concept-leve
+
+M wl. M tom gh w
+
+l forgetting
+
+(202 Disti
+
+via LoRA
+
+4) ll.
+
+updates
+
+SPU Hybr LL Tox Me Lo  Safety-orient
+
+NGE id M ic diu w
+
+ed; toxicity
+
+(202 Split
+
+m
+
+removal
+
+4) -Mer
+
+focus
+
+ge
+
+Jens JS LL Cus Me Lo 
+
+Un Dive M tom d- w
+
+(202 rgen
+
+Hi
+
+5) ce
+
+gh
+
+Prevents benign relearning attacks
+
+FIT Cont LL Str Me Me 
+
+(202 . M ea diu diu
+
+6) Unle
+
+m. m m
+
+arn.
+
+Sequential unlearning
+support
+
+Full Exac LL All Ver V 
+
+Gold
+
+Retr t M
+
+y H
+
+standard;
+
+ainin Unle
+
+Hi cos
+
+computation
+
+g arn.
+
+gh t
+
+ally impractical
+V. THE UNLEARNING-HALLUCINATION INTERACTION FRAMEWORK (UHIF)
+The trade-off between unlearning, utility, and hallucination is formalized in the form of a 3D framework that allows the principled comparison of different methods. Unlearning Effectiveness (Uf) reflects the extent to which the model "forgets" the forget set and is computed as 1 - Acc(M, Df) / Acc(M, Df); Uf = 1 means complete forgetting and Uf = 0 means no unlearning. Utility Preservation (Ur) reflects how well the model retains its performance on the retain set, as Acc(M, Dr) / Acc(M, Dr). Hallucination Change Rate (H) captures the change of hallucination frequency on queries semantically adjacent to, but not contained in Df; H < 0 means reduction of hallucinations, and H > 0 means induction of new ones. The UHIF space is the 3D space U = [0,1] × [0,1] × (-1, 1) with coordinates (Uf , Ur, H), and the optimal operation point is (1, 1, H  0). Method A Pareto-dominate the method B if it is at least as good as method B on all three dimensions and strictly better than B on at least one dimension.
+For gradient ascent, the expected change in the output distribution of the adjacent queries Qprobe is bounded by E[H]  C ·  · L(Df) · cos(), where  is the angle between the forget gradient direction and the parameter subspace relevant to Qprobe, and C is a Lipschitz constant of the output distribution of the model. The three
+
+important conclusions follow from this conjecture: (1) the increase in the risk of collateral hallucinations occurs proportionally to the learning rate ; (2) the maximum risk of hallucination is achieved if the parameter subspace of the forget and probe sets coincide (cos()  1); and (3) only those unlearning methods that constrain the gradient direction (KL regularization) or selectively target the parameter subspace of the relevant query (attention shifting) can minimize cos() and thus bound H.
+Finally, for entropy maximization, we show that H  0 for factual and faithfulness hallucinations of queries related to the forget set. After the convergence, PM(y|x  Df)  Uniform(V), which means that the model cannot assign high probability to any factual statement -- correct or incorrect. It eliminates the necessity of overconfidence in hallucinations and provides the only approximate unlearning method used in practice that has a formal guarantee in this space. The trade-off of this method is the incomplete unlearning (Uf < 1) and potential utility degradation (Ur < 1) on topics with parameter subspaces overlapping with Df. Finally, we postulate the Unlearning Trilemma: for gradient ascent without regularization, achieving Uf = 1 means that   , and, consequently,H  sup H and Ur  0. Thus, there exists no learning rate for which naive GA achieves (Uf = 1, Ur = 1, H  0).
+VI. EVALUATION FRAMEWORKS AND BENCHMARKS
+
+Current unlearning evaluation assesses three dimensions [21]: forget-set performance (which must degrade, measured via accuracy and membership inference attack resistance), retain-set performance (which must be preserved, measured via standard NLP benchmarks), and computational efficiency (time and compute relative to full retraining). For hallucination, the key metrics include FActScore [22] (fine-grained factual precision via atomic fact verification), Abstention Rate (fraction of responses where the model declines to answer for forget-set queries), Expected Calibration Error (ECE) [23] (alignment between model confidence and accuracy), hallucination rate (fraction of responses containing verifiable factual errors), Vectara HHEM (hallucination frequency in summarization tasks), and LLM-as-Judge (factual correctness evaluation by a separate LLM). No existing benchmark, however, jointly evaluates unlearning completeness and hallucination impact; this is the gap that HalUnlearn-Bench is designed to fill. Table III summarizes the current benchmark landscape.
+
+TABLE III: KEY BENCHMARKS: COVERAGE OF UNLEARNING AND HALLUCINATION DIMENSIONS
+
+Bench Year Pri Stre Limitatio Unl Hall.
+
+mark
+
+mar ngth
+
+ns
+
+.
+
+y
+
+s
+
+Foc
+
+us
+
+TOFU 2024 Ficti Cont
+
+No
+
+ ×
+
+[14]
+
+tious rolle hallucinati
+
+unle d, on metrics
+
+arnin repro
+
+g duci
+
+ble
+
+WMD 2024 Haza Real- Limited  ×
+
+P [24]
+
+rdou worl hallucinati
+
+s
+
+d on scope
+
+kno appli
+
+wled cabil
+
+ge ity
+
+RWKU [30] 2024 Real Pract
+
+No
+
+ ×
+
+U
+
+-wor ical forget-cor
+
+ld setup pus access
+
+entit
+
+y
+
+unl.
+
+MUSE 2025 Six- Com
+
+No
+
+ ×
+
+[25]
+
+way preh hallucinati
+
+LL ensiv on focus
+
+M e
+
+unl. metri
+
+eval cs
+
+HalluLens [31] 2025 Hall Taxo
+
+No
+
+× 
+
+ens
+
+ucin nomi unlearning
+
+ation c integration
+
+eval clarit
+
+uatio y
+
+n
+
+HalluEditBench [32] 2025 Edit- Brid Limited to × 
+
+ditBen
+
+base ges editing
+
+ch
+
+d editi paradigm
+
+hallu ng &
+
+cinat hallu
+
+ion c.
+
+FACTS Grounding [33] 2024 Fact Rigo Not
+
+× 
+
+S
+
+ual rous designed
+
+Groun
+
+grou attrib
+
+for
+
+ding
+
+ndin ution unlearning
+
+g
+
+HalUn 2026 Joint Both Pilot-scale  
+
+learn-
+
+eval dims only
+
+Bench
+
+uatio .,
+
+(ours)
+
+n adve
+
+rsari
+
+al
+
+VII. HALUNLEARN-BENCH: BENCHMARK SPECIFICATIONS
+
+HalUnlearn-Bench is intended to assess together: (1) unlearning completeness, (2) utility fidelity for adjacent knowledge, (3) hallucination robustness to unlearned information, and (4) adversarially robustness to knowledge recovery.
+
+All procedures are fully reproducible without using proprietary systems.
+The base dataset is the TOFU benchmark [14], consisting of 200 fictional author profiles with 20 question-answer pairs per author, using the standard Train/Forget/Retain split provided by the authors. As an additional data augmentation, for each of the 200 forget-set entities we generate: (1) 5 Direct Recall Probes -- facts that must be forgotten ("Where was [Author X] born?") with the intended model behavior of abstinence or "I don't know"; (2) 5 Adjacent Knowledge Probes , adjacent facts (that were not forgotten) ("What literary genre did [Author X] write in?") with the intended behavior of correct factual responses; and (3) 5 Hallucination Elicitation Probes -- probes intended to elicit confabulation ("What awards did [Author X] win in the field of [Related Domain]?") with the intended model behavior of abstinence (no fabrication). This results in 3,000 probes annotated with ground truth labels.
+Evaluation is performed in four stages: Phase 1 (Pre-Unlearning Baseline) runs M on all 3,000 probes; Phase 2 (Apply Unlearning) performs the unlearning technique with Df = TOFU forget set; Phase 3 (Post-Unlearning Evaluation) runs M' on all probes and computes four metrics; and Phase 4 (Adversarial Robustness) tests under paraphrased probes, chain-of-thought elicitation, and three-shot in-context examples from Dr. Table IV below shows the metrics definitions and their ideal values.
+
+The overall HalUnlearn score is: HalUnlearn = 0.3·FC + 0.3·RF + 0.3·HR + 0.1·AR. All evaluations must include model checkpoint, TOFU split ID, FActScore knowledge source, inference parameters (temperature=0.0, greedy; max new tokens=100), abstention patterns and results for 3 random seeds (mean ± std; 95% bootstrap CI).
+
+TABLE IV: HALUNLEARN-BENCH METRICS
+
+Metric
+
+Measures
+
+Range
+
+Ideal
+
+Forget 1 - Acc(M, direct [0, 1]
+
+1.0
+
+Complete
+
+recall)
+
+ness (FC)
+
+Retain Acc(M, adjacent) [0, 1]
+
+1.0
+
+Fidelity
+
+/ Acc(M,
+
+(RF)
+
+adjacent)
+
+Hallucinat
+
+1 - H(M,
+
+[0, 1]
+
+1.0
+
+ion elicitation probes)
+
+Resistance
+
+(HR)
+
+Adversari
+
+FC under
+
+[0, 1]
+
+1.0
+
+al
+
+adversarial
+
+Robustnes paraphrasing
+
+s (AR)
+
+VII-A. PILOT VALIDATION
+
+As a preliminary validation of the
+
+HalUnlearn-Bench protocol, we ran a pilot using
+
+Qwen2.5-1.5B-Instruct, first fine-tuned via LoRA
+
+(r=8, 2 epochs) on a 20-author TOFU subset plus
+
+2,000 retain-set examples to instill target
+
+knowledge, then unlearned via Entropy
+
+Maximization (LoRA, r=8, 3 epochs). Table VII
+
+reports
+
+FC=1.00,
+
+RF=0.00
+
+(raw
+
+adjacent-knowledge accuracy: baseline 0.12 ->
+
+post-unlearning 0.00),HR=0.00, AR=1.00,
+
+HalUnlearn Score=0.40.
+
+TABLE VII: HALUNLEARN-BENCH PILOT RESULTS
+
+(QWEN2.5-1.5B-INSTRUCT, TOFU SUBSET)
+
+20-AUTHOR
+
+Method
+
+FC RF HR AR HalUnlea rn Score
+
+Entropy Maximizati 1.00 0.00 0.00 1.00 0.40
+on
+
+Note: Raw adjacent-knowledge accuracy -- baseline 0.12  post-unlearning 0.00. Pilot scale: 20 of 200 TOFU authors (10%), single method. See limitations below.
+Two results are notable, though both should be read against an important caveat: our lightweight fine-tuning baseline achieved only 12% raw accuracy on adjacent-knowledge probes even before unlearning, indicating a fairly weak initial grasp of author-specific facts. With that caveat, RF collapsing fully to zero is directionally consistent with this paper's central claim of collateral hallucination -- the narrow correct knowledge the model did have was fully erased, not selectively preserved -- but the small baseline magnitude means this pilot cannot yet support strong quantitative claims about the size of the effect. Separately, HR=0.00 despite ME's theoretical entropy-maximization guarantee (Conjecture 2, Appendix A.2) demonstrates the
+
+gap flagged in that appendix's Scope and Limitation discussion:
+
+near-uniform output under greedy decoding does
+
+not naturally manifest as abstention language,
+
+and HR as operationalized here requires an
+
+explicit abstentiondecoding
+
+mechanism
+
+(Assumption A3) that entropy maximization
+
+alone does not provide.This pilot uses a single
+
+method, a 20-author (10%) subset, and a lightly
+
+fine-tuned rather than fully-memorized baseline;
+
+a full-scale evaluation across all 200 TOFU
+
+authors, all taxonomized methods, and a more
+
+thoroughly fine-tuned baseline model --
+
+sufficient to establish strong pre-unlearning
+
+knowledge before measuring what unlearning
+
+destroys -- is left as future work (see H4).
+
+Code Availability: The pilot notebook and full
+
+implementation used to produce Table VII are
+
+available
+
+at:
+
+https://github.com/ZahidHasan7/Paper/blob/main
+
+/Halunlearn%20bench%20pilot.ipynb.
+
+VIII. COMPARISON OF METHODS AND DECISION-FRAMEWORK
+In Table V, we provide an extended comparison that includes hallucination-related dimensions and analysis through the UHIF lens. Based on the comparative dimensions in Table V, machine unlearning appears to be the only reviewed
+
+method that both addresses the root cause of knowledge-sourced hallucinations and satisfies privacy-compliance requirements -- though this comparison draws on a small and heterogeneous evidence base (see Table V's [S]-marked cells) rather than a head-to-head empirical study, and should be read as a structural observation rather than a settled empirical ranking. It also appears to be the only technique carrying a known, currently unquantified risk of producing new hallucinations as a side effect while being compliant with privacy. In Table VI, we present the qualitative position of major techniques from the perspective of UHIF.
+
+TABLE V: COMPREHENSIVE COMPARISON OF HALLUCINATION MITIGATION
+STRATEGIES.RATINGS BACKED BY UHIF ANALYSIS AND CITED EVIDENCE. [V] = PAPER-VERIFIED; [S] = SYNTHESIS-BASED.
+
+Dimens Un RA RLH Kno Pro Evidence
+
+ion lea G F/D wled mpt
+
+rni
+
+PO ge Eng.
+
+ng
+
+Edit.
+
+Address  ×   ×
+
+[S]
+
+es root
+
+cause
+
+Perman  ×   ×
+
+[V]
+
+ent
+
+effect
+
+Halluci     
+
+[S]
+
+nation
+
+reductio
+
+n
+
+Risk of  × ×
+
+
+
+×
+
+[V]
+
+inducin
+
+g
+
+hallucin
+
+ation
+
+Privacy  × ×
+
+
+
+×
+
+[V]
+
+complia
+
+nce
+
+No ×  ×
+
+× 
+
+[V]
+
+model
+
+weight
+
+access needed
+
+Real-ti ×  ×
+
+ 
+
+[S]
+
+me
+
+applica
+
+bility
+
+Scalabil   
+
+ 
+
+[S]
+
+ity
+
+TABLE VI: UHIF POSITIONING OF MAJOR UNLEARNING METHODS (QUALITATIVE)
+
+Method Uf  Ur 
+
+H  Evidence
+
+Naive High Low Positive
+
+[V]
+
+GA
+
+(bad)
+
+GA + High High Near-zero
+
+[S]
+
+KL
+
+NPO High Medium Near-zero
+
+[S]
+
+ME Medium Medium Negative
+
+[V]
+
+(good)
+
+Attn. High High Negative
+
+[V]*
+
+Shifting
+
+(best)
+
+ELM High High Near-zero
+
+[S]
+
+* Single-source verification (ref [20]); not yet independently replicated -- see §VIII discussion and comment 6.
+
+Taking into account the results of the UHIF analysis and the three above-described deployment scenarios, we give the following recommendations for practitioners. In the first scenario (privacy compliance + hallucination safety), either Attention Shifting or GA+KL is recommended. If the former is needed, then H should be  0. In the second scenario (real-time fact grounding without access to model weights), RAG technique is suitable, additionally supplemented with unlearning in case persistent removal is needed. In the third scenario (one-fact correction without the need of compliance), knowledge editing techniques, such as ROME
+
+[18], MEMIT [19], or their analogues are best suited. If H needs to be guaranteed  0, then Entropy Maximization (Proposition 2) is the way to go, accepting lower Uf. In case there is no model weights access at all, prompt engineering with RAG is the only solution left.
+IX. OPEN CHALLENGES AND FUTURE DIRECTIONS
+We list ten falsifiable research directions. H1 (Benchmark gap): There exists no existing benchmark which can measure Uf, Ur, and H at once; HalUnlearn-Bench represents a first attempt to do this but its validation on non-synthetic real data sets is left open. H2 (Theory gap): The theoretical lower bound on H for any gradient-based method is yet to be found; Proposition 1 defines an upper bound but its tightness is unknown. H3 (Longitudinal gap): The question of whether unlearned knowledge reappears through in-context learning after N inference steps has not been studied. H4 (Comparative gap): No study compares all existing major methods on identical models, data splits, and hallucinations probes, which represents an urgent necessity of community-wide benchmark. H5 (Multimodal gap): The peculiar cos() values of multimodal unlearning techniques caused by cross-modal parameter sharing in vision-language models. H6 (Continual gap): Sequential unlearning requests will lead to an increase of H linearly depending on the number of requests. H7 (Black-box gap): It is possible to estimate H for black-box
+
+models using behavioral probing but it is impossible to mitigate hallucinations in black-box models without weight access. H8 (Verification gap): Unlearning methods which give Uf0.9 may be vulnerable to knowledge re-learning through adversarial in-context learning within 10 shots. H9 (Multilingual gap): For low-resource languages, H should be expected to be greater because of shared multilingual parameter subspaces. H10 (Privacy-factuality tension): Privacy-optimization and factuality-optimization of unlearning processes are mutually contradictory.
+
+Among the most interesting future research directions are: unlearning with constraints (formulated as a constrained optimization problem where the goal is to maximize Uf while keeping H and Ur); extending HalUnlearn-Bench to real-world entity knowledge with human-verified ground truth labels; theoretically tightening Proposition 1 by characterizing Hessian structure of LLM parameter spaces around Df; continual unlearning with dynamic Qprobe updates and selective entropy injection; extending HalUnlearn-Bench to multimodal LLMs; and uncertainty-first unlearning which teaches the model to generate calibrated uncertainty on unlearned topics before producing incorrect answers.
+
+X. CONCLUSION
+
+This
+
+paper
+
+proposes
+
+the
+
+Unlearning-Hallucination Interaction Framework
+
+(UHIF) and introduces the first terminology to formally characterize the effect of knowledge removal techniques on hallucinations. By analyzing 57 papers from both unlearning and hallucination literatures, we discover a consistent and unquantified observation: gradient-based unlearning methods, which constitute the majority of the unlearning literature, reside in Pareto-dominated regions in the UHIF space. Although they perform highly effectively in unlearning, they induce positive H (collateral hallucination induction), meaning organizations using unlearning to be GDPR-compliant may end up with less reliable models than before.
+Formally, we hypothesize that naive gradient ascent techniques cannot achieve simultaneously high effectiveness, utility preservation, and safety regarding hallucination rate increase. Entropy maximization is the only widely used unlearning technique that guarantees not inducing any additional hallucinations on the forget-set. Attention Shifting shows the most promise as a practical approach, appearing to reach the Pareto frontier in the UHIF framework according to currently available (single-source) evidence -- independent replication remains an open priority (H4). Moreover, we propose the HalUnlearn-Bench benchmarking suite, the first evaluation protocol measuring all three UHIF dimensions, including adversarial attacks. The path towards responsible language models requires approaches that are not only effective in removing information but do not induce new
+
+unreliabilities in the process. Responsibility while forgetting is not only an engineering concern - it is a mathematical optimization problem, and this work provides the first building blocks to solve it.
+APPENDIX A: JUSTIFICATIONS FOR FORMAL CONJECTURES
+A.1 Conjecture 1 (Collateral-Hallucination Bound)
+Assumption A1 (Local Lipschitz output map). For a fixed query x, the map   P_(·|x) is C-Lipschitz in total variation: P_'(·|x) - P_(·|x)_TV  C' - .
+Assumption A2 (Subspace relevance model). The model's response to query x depends only on the component of any parameter update lying in a query-relevant subspace S_x  ^d.
+Derivation. A single gradient-ascent step gives  = L(Df) = ·g.
+Decompose g = g + g relative to S_x, so g = gcos(), where  is the angle between g and S_x. Under A2, only g perturbs P(·|x).
+Applying A1:
+H(x)  P_'(·|x) - P_(·|x)_TV  C··g·cos().Taking expectation over Qprobe gives Proposition 1.
+Limitations. This bound covers a single GA step, not the multi-step trajectories used in practice;
+
+A2 is an idealization of a real phenomenon that likely involves distributed, overlapping subspaces
+rather than a clean linear decomposition.
+A.2 Conjecture 2 (Entropy Maximization Bounds H  0)
+Assumption A3. The action space includes an abstention/refusal token or template, and the evaluation protocol counts near-uniform output entropy above threshold  as abstention (consistent with the HR metric defined in Table IV).
+Derivation.Step 1 -- The Entropy Maximization Objective. Entropy Maximization (ME) trains the model by maximizing the Shannon entropy of its output distribution over every query x in the forget set Df. In plain terms, the training loss pushes the model toward producing an output distribution that is as spread out and uncertain as possible for any query belonging to Df. The higher the entropy, the more uniformly the probability mass is spread across all possible tokens in the vocabulary V. Step 2 -- Convergence to the Uniform Distribution. Shannon entropy over a vocabulary V is a strictly concave function of the output probability distribution, and its one and only global maximum is achieved when the distribution is perfectly uniform -- that is, when every token in V receives equal probability 1/|V|. Because ME directly maximizes this entropy function, and
+
+because the function has no local maxima (only a single global maximum at the uniform distribution), gradient ascent on the entropy loss converges toward the uniform distribution. After a sufficient number of training steps T, the model's output distribution on any forget-set query x satisfies: P(· | x)  Uniform(V) In other words, for queries in Df, the post-unlearning model M assigns approximately equal probability to every word in the vocabulary, rather than concentrating probability on any particular factual answer. Step 3 -- Near-Uniform Output Cannot Produce a Confident Incorrect Answer. Once convergence has been achieved, the probability that M generates any specific incorrect factual answer y_false in response to a probe query x is approximately 1/|V|. Since vocabularies in large language models typically contain tens of thousands of tokens, this probability is extremely small (on the order of 0.00003 or less for a 30,000-token vocabulary). Crucially, this means the model cannot confidently assert any factual statement -- correct or incorrect -- in response to a Df-adjacent query. The model has become genuinely and uniformly uncertain. Step 4 -- Near-Uniform Output Is Classified as Abstention Under Assumption A3. Assumption A3 states that the evaluation protocol counts any model response whose output entropy exceeds a threshold  as an abstention (equivalent to an "I don't know" response), rather than as a hallucination. Because ME-converged outputs are approximately uniform -- and therefore carry
+
+near-maximum entropy, equal to log|V| -- the output entropy of M on probe queries will exceed the threshold . As a result, those responses are classified as abstentions by the HR metric (as defined in Table IV of the paper), not as hallucinations. Step 5 -- Abstention Implies No Increase in Hallucination Rate (H  0). The Hallucination Change Rate H is defined in Section V as the change in hallucination frequency on probe queries Qprobe before and after unlearning. Under the HR metric, a response is counted as a hallucination only if it is (a) not an abstention and (b) contains a verifiable factual error. Since M produces abstentions for Df-adjacent queries after ME convergence, those responses are not counted as hallucinations. Therefore, the hallucination count for M on Qprobe is no greater than the hallucination count for original M, which gives: H(x) = H(M, x) - H(M, x)  0, for every x in Qprobe. Taking the average over all probe queries gives the final result: Average H over all x in Qprobe  0. This establishes Conjecture 2: Entropy Maximization does not increase the hallucination rate on forget-set-adjacent queries, as measured by the HR metric defined in this paper
+Scope. This result holds for the specific operational definition of hallucination used in this paper's HR metric (Table IV), not as a universal claim about hallucination under arbitrary decoding or evaluation protocols.
+A.3 The Unlearning Trilemma
+
+Claim (revised). For any forget set Df whose
+
+gradient direction has nonzero overlap with the
+
+retain-relevant subspace (cos(_retain) 0) which
+
+holds
+
+generically
+
+under
+
+the
+
+shared-parameterization structure of transformer
+
+LLMs -- naive GA cannot simultaneously
+
+achieve Uf = 1, Ur = 1, and H  0 as   .
+
+Argument. Write the GA update as ' =  + ·g, where g = L(Df).
+
+Achieving Uf = 1 requires driving Acc(M', Df)  0, which requires the perturbation magnitude  = g to exceed some threshold _forget -- the minimum perturbation needed to erase Df-set performance. Hence Uf  1 forces g   (since g is fixed by the forget set, this means    as stated).
+
+Retain-side collapse (Ur  0). By the same subspace decomposition used in Proposition 1 (Appendix A.1), apply Assumptions A1-A2 to the retain-relevant subspace S_r in place of the probe-relevant subspace S_x: the retain-set output shift is bounded below by a term proportional to g·cos(_retain). Since cos(_retain)  0 by assumption (nonzero overlap between forget and retain gradient directions), this quantity grows without bound as   , so Acc(M', Dr) is driven toward the floor of the model's output distribution, giving Ur  0.
+Hallucination blow-up (H  sup). Unlike entropy maximization
+
+(Appendix A.2), naive GA has no term in its
+
+objective pushing P_'(y|x) toward Uniform(V).
+
+As g  , logits on Qprobe are instead
+
+pushed to extreme, arbitrary values by the same
+
+shared subspace mechanism (cos(_retain)  0
+
+implies S_x and S_r overlap substantially in
+
+transformer
+
+models
+
+with
+
+shared
+
+embedding/attention parameters). Extreme
+
+arbitrary logits under greedy or low-temperature
+
+decoding produce confident, incorrect
+
+completions rather than abstentions -- i.e., H is
+
+driven toward its supremum rather than toward
+
+the abstention-favorable region achieved by ME.
+
+Conclusion. No finite  simultaneously achieves
+
+(Uf = 1, Ur = 1,H  0); the three conditions are
+
+mutually exclusive as  grows, which is the
+
+trilemma.
+
+Note. This is not a hard impossibility result: if cos(_retain) = 0 exactly (forget and retain gradients orthogonal), the trilemma does not apply. We do not have a proof that exact orthogonality cannot occur in shared-embedding transformers; we argue only that it is non-generic.
+
+. ACKNOWLEDGMENT The authors express their heartfelt
+gratitude to all those who have contributed their valuable insights and support that have helped make this research project a success. It should also be noted that there is a wider research community that has laid down the foundation of
+
+our research through freely available datasets and
+benchmark tools.
+. REFERENCES
+[1] A. Alansari and H. Luqman, "Large Language Models Hallucination: A Comprehensive Survey," Computer Science Review, vol. 61, art. 100970, 2026.
+[2] L. Huang et al., "A Survey on Hallucination in Large Language Models: Principles, Taxonomy, Challenges, and Open Questions," ACM Transactions on Information Systems (TOIS), vol. 43, no. 2, art. 3155, pp. 1-55, 2024.
+[3] A.-H. Dang, V. Tran, and L.-M. Nguyen, "Survey and Analysis of Hallucinations in Large Language Models: Attribution to Prompting Strategies or Model Behavior," Frontiers in Artificial Intelligence, vol. 8, art. 1622292, 2025. doi: 10.3389/frai.2025.1622292.
+[4] I. Kazlaris, E. Antoniou, K. Diamantaras, and C. Bratsas, "From Illusion to Insight: A Taxonomic Survey of Hallucination Mitigation Techniques in LLMs," AI (MDPI), vol. 6, art. 260, 2025.
+[5] A. T. Kalai, O. Nachum, S. S. Vempala, and E. Zhang, "Why Language Models Hallucinate," arXiv preprint arXiv:2509.04664, 2025.
+[6] J. Geng, Q. Li, H. Woisetschlaeger, Z. Chen, F. Cai, Y. Wang, P. Nakov, H.-A. Jacobsen, and F. Karray, "A Survey of Machine Unlearning in Large Language Models: Methods, Challenges and Future Directions," arXiv preprint arXiv:2503.01854, 2025.
+[7] Y. Liu et al., "Machine Unlearning in Generative AI: A Survey," arXiv preprint arXiv:2407.20516, 2024.
+[8] W. Wang, Z. Tian, and S. Yu, "Machine Unlearning: A Comprehensive Survey," arXiv preprint arXiv:2405.07406, 2024.
+[9] J. Yao, E. Chien, M. Du, X. Niu, T. Wang, Z. Cheng, and X. Yue, "Machine Unlearning of Pre-trained Large Language Models," in Proc. ACL, 2024, pp. 8403-8419.
+
+[10] R. Gandikota, S. Feucht, S. Marks, and D. Bau, "Erasing Conceptual Knowledge from Language Models," arXiv preprint arXiv:2410.02760, 2024.
+[11] Z. Pang, H. Zheng, Z. Deng, L. Li, Z. Zhong, and J. Wei, "Label Smoothing Improves Gradient Ascent in LLM Unlearning," arXiv preprint arXiv:2510.22376, 2025.
+[12] L. Bourtoule et al., "Machine Unlearning," in IEEE Symp. Security and Privacy (S&P), 2021, pp. 141-159.
+[13] S. R. Kadhe, F. Ahmed, D. Wei, N. Baracaldo, and I. Padhi, "Split, Unlearn, Merge: Leveraging Data Attributes for More Effective Unlearning in LLMs," arXiv preprint arXiv:2406.11780, 2024.
+[14] P. Maini, Z. Feng, A. Schwarzschild, Z. C. Lipton, and J. Z. Kolter, "TOFU: A Task of Fictitious Unlearning for LLMs," arXiv preprint arXiv:2401.06121, 2024.
+[15] Z. Liu, G. Dou, X. Yuan, C. Zhang, Z. Tan, and M. Jiang, "Modality-Aware Neuron Pruning for Unlearning in Multimodal Large Language Models," in Proc. ACL, 2025.
+[16] X. Yuan, T. Pang, C. Du, K. Chen, W. Zhang, and M. Lin, "A Closer Look at Machine Unlearning for Large Language Models," in Proc. ICLR, 2025.
+[17] R. Rafailov et al., "Direct Preference Optimization: Your Language Model is Secretly a Reward Model," in Proc. NeurIPS, 2023, pp. 53728-53741.
+[18] K. Meng et al., "Locating and Editing Factual Associations in GPT," in Proc. NeurIPS, 2022, pp. 17359-17372.
+[19] K. Meng et al., "Mass-Editing Memory in a Transformer," in Proc. ICLR, 2023.
+[20] C. Tan, Y. Qu, X. Li, H. Zhang, S. Cui, C. Chen, and L. Gao, "Wisdom is Knowing What not to Say: Hallucination-Free LLMs Unlearning via Attention Shifting," arXiv preprint arXiv:2510.17210, 2025.
+
+[21] Z. Feng, Y. E. Xu, A. Robey, R. Kirk, X. Davies, Y. Gal, A. Schwarzschild, and J. Z. Kolter, "Existing Large Language Model Unlearning Evaluations Are Inconclusive," arXiv preprint arXiv:2506.00688, 2025.
+[22] S. Min et al., "FActScore: Fine-Grained Atomic Evaluation of Factual Precision in Long Form Text Generation," in Proc. EMNLP, 2023, pp. 6042-6060.
+[23] C. Guo et al., "On Calibration of Modern Neural Networks," in Proc. ICML, 2017, pp. 1321-1330.
+[24] N. Li et al., "The WMDP Benchmark: Measuring and Reducing Malicious Use With Unlearning," in Proc. ICML, 2024.
+[25] W. Shi, J. Lee, Y. Huang, S. Malladi, J. Zhao, A. Holtzman, D. Liu, L. Zettlemoyer, N. A. Smith, and C. Zhang, "MUSE: Machine Unlearning Six-Way Evaluation for Language Models," in Proc. ICLR, 2025.
+[26] Y. Huang et al., "Position: TrustLLM: Trustworthiness in Large Language Models," in Proc. ICML, 2024.
+[27] K. Feretzakis et al., "GDPR right to be forgotten in the era of large language models," MDPI Future Internet, vol. 17, no. 4, 2025.
+[28] European Parliament and Council, "Regulation (EU) 2024/1689 (EU AI Act)," Official Journal of the EU, 2024.
+[29] A. Vaswani et al., "Attention is All You Need," in Proc. NeurIPS, 2017, pp. 5998-6008.
+[30] Z. Jin et al., "RWKU: Benchmarking Real-World Knowledge Unlearning for Large Language Models," in Proc. NeurIPS Datasets and Benchmarks Track, 2024.
+[31] Y. Bang et al., "HalluLens: LLM Hallucination Benchmark," in Proc. ACL, 2025.
+[32] B. Huang et al., "Can Knowledge Editing Really Correct Hallucinations?" in Proc. ICLR, 2025.
+[33] A. Jacovi et al., "The FACTS Grounding Leaderboard: Benchmarking LLMs' Ability to Ground Responses to Long-Form Input," arXiv preprint arXiv:2501.03200, 2025.
+
+
